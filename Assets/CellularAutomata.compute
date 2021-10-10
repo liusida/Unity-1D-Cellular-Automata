@@ -1,0 +1,100 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CAInit
+#pragma kernel CAStep
+
+RWTexture2DArray<float4> bufferArray; // Note: buffer is a reserved name, so don't use that.
+
+uint initActivated;
+uint bufferHeight;
+uint bufferWidth;
+uint bufferId;
+uint ruleId;
+
+[numthreads(8,1,2)]
+void CAInit (uint3 id:SV_DispatchThreadID) 
+{
+    if (id.x==initActivated) {
+        bufferArray[uint3(id.x, id.y, id.z)] = float4(1,1,1,1);
+    }
+}
+
+[numthreads(8,8,1)]
+void CAStep (uint3 id : SV_DispatchThreadID)
+{
+    uint3 src, dest;
+    src.z = bufferId;
+    dest.z = 1 - bufferId;
+
+    if (id.y == 0) { // new line
+        uint overflow;
+        uint3 src0,src1,src2;
+        src.x = id.x;
+        src.y = id.y;
+        src0 = src1 = src2 = src;
+        src0.x = src0.x - 1;
+        src2.x = src2.x + 1;
+        
+        overflow = 1;
+        if (id.x==0) {
+            src0.x = bufferWidth-1;
+        } else if (id.x==bufferWidth-1) {
+            src2.x = 0;
+        } else {
+            overflow = 0;
+        }
+
+        dest.x = id.x;
+        dest.y = id.y;
+        
+        uint ruleIdBinary[8];
+        for (int i=0;i<8;i++) {
+            ruleIdBinary[i] = ruleId % 2;
+            ruleId /= 2;
+        }
+        float n;
+        if (bufferArray[src0].x==1.0 && bufferArray[src1].x==1.0 && bufferArray[src2].x==1.0) {
+            n = (float)ruleIdBinary[7];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+        if (bufferArray[src0].x==1.0 && bufferArray[src1].x==1.0 && bufferArray[src2].x==0.0) {
+            n = (float)ruleIdBinary[6];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+        if (bufferArray[src0].x==1.0 && bufferArray[src1].x==0.0 && bufferArray[src2].x==1.0) {
+            n = (float)ruleIdBinary[5];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+        if (bufferArray[src0].x==1.0 && bufferArray[src1].x==0.0 && bufferArray[src2].x==0.0) {
+            n = (float)ruleIdBinary[4];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+        if (bufferArray[src0].x==0.0 && bufferArray[src1].x==1.0 && bufferArray[src2].x==1.0) {
+            n = (float)ruleIdBinary[3];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+        if (bufferArray[src0].x==0.0 && bufferArray[src1].x==1.0 && bufferArray[src2].x==0.0) {
+            n = (float)ruleIdBinary[2];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+        if (bufferArray[src0].x==0.0 && bufferArray[src1].x==0.0 && bufferArray[src2].x==1.0) {
+            n = (float)ruleIdBinary[1];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+        if (bufferArray[src0].x==0.0 && bufferArray[src1].x==0.0 && bufferArray[src2].x==0.0) {
+            n = (float)ruleIdBinary[0];
+            bufferArray[dest] = float4(n,n,n,n);
+        }
+
+        if (overflow) {
+            bufferArray[dest] = float4(0,0,0,0);
+        }
+    } else { // copy old lines
+        src.x = id.x;
+        src.y = id.y-1;
+
+        dest.x = id.x;
+        dest.y = id.y;
+
+        bufferArray[dest] = bufferArray[src];
+    }
+}
